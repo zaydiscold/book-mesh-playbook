@@ -7,6 +7,11 @@ Goodreads, Amazon lists, and a Kindle — without browser automation or a shared
 minted from *their* browser session. A friend clones this, logs into their own accounts, and
 their agent reproduces the same workflow.
 
+## Start here
+
+**[PASTE-THIS.md](./PASTE-THIS.md)** — one self-contained block to paste into any agent. It carries the
+whole pipeline: mirrors, search tactics, verification gates, conversion, and Send-to-Kindle.
+
 ## What's in the box
 
 ```

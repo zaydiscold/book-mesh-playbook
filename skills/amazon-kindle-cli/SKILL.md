@@ -22,7 +22,7 @@ Rules for small agents:
 3. Writes dry-run by default. Add `--execute` only when the user asked for the write.
 4. Verify semantically: Send-to-Kindle receipt/status, full paginated wishlist membership, or Goodreads shelf membership. HTTP 200 alone is not success.
 5. For a Kindle send, poll `kindle recent` after the asynchronous conversion and match every sent **filename and byte size** in `data.docs[]`; report delivery only when each matching receipt is `status: IN_LIBRARY` with no failure/error code. The send mutation response is only an upload acknowledgment.
-6. Never purchase a book without explicit approval.
+6. Writes are explicit: dry-run unless `--execute`.
 
 ## Preflight
 

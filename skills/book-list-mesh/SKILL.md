@@ -26,7 +26,7 @@ Class playbook for the **paired unofficial CLIs**. Product path is **API map →
 | Goodreads | `zaydiscold/goodreads-cli-mcp-api` | `~/.goodreads/auth.sh` |
 | Amazon/Kindle | `zaydiscold/amazon-kindle-cli-mcp-api` | `~/.amazon/auth.sh` auto-loaded (+ optional `AMAZON_WISHLIST_ID`) |
 
-Set `GOODREADS_USER_ID` and `AMAZON_WISHLIST_ID` to your own values.
+Set `GOODREADS_USER_ID` and `AMAZON_WISHLIST_ID` in the operator environment or auth configuration; never embed a person's account/list IDs in a skill or a shareable playbook.
 
 ## Invariants
 
@@ -34,10 +34,10 @@ Set `GOODREADS_USER_ID` and `AMAZON_WISHLIST_ID` to your own values.
 2. **Dry-run default** — writes need `--execute`.
 3. **Never print cookies/CSRF/tokens.**
 4. **Volume discipline** — one edition per work on hauls; skip study guides and duplicate storybook variants unless asked.
-5. **One edition per work** on hauls (skip study guides / duplicate storybook variants unless asked).
-6. **GitHub is source of truth** — ship **both** repos (user only sees emails for repos that actually merge).
-7. **Anything requiring manual look/scroll on Amazon or Goodreads is a bug** — fix the HTTP CLI path instead.
-8. **Auth proof is live dual-surface** — Amazon `auth status` ≠ ready; use `auth verify` and treat `readReady` vs `retailWriteReady` separately.
+5. **GitHub is source of truth** — ship **both** repos (user only sees emails for repos that actually merge).
+6. **Anything requiring manual look/scroll on Amazon or Goodreads is a bug** — fix the HTTP CLI path instead.
+7. **Auth proof is live dual-surface** — Amazon `auth status` ≠ ready; use `auth verify` and treat `readReady` vs `retailWriteReady` separately.
+8. **Parameterize portable material** — replace account IDs, list IDs, cookies, and other operator-specific values with named configuration before publishing or sharing; otherwise a reusable playbook becomes an account-data leak.
 
 ## Amazon wishlist HTTP (live-mapped 2026-08-01)
 
