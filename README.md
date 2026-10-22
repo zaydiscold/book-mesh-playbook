@@ -16,6 +16,7 @@ whole pipeline: mirrors, search tactics, verification gates, conversion, and Sen
 
 ```
 PASTE-THIS.md            one-paste agent brief
+docs/API-CONTRACTS.md    the actual HTTP surface + failure taxonomy
 pipeline/bookmesh.py     pull -> diff -> search -> download -> send
 skills/
   free-book-download/    finding + fetching ebooks, mirror reality
