@@ -45,14 +45,28 @@ Check public-domain sources first — they have no bot protection and no ambigui
                      download: gutenberg.org/cache/epub/{id}/pg{id}.txt
   Standard Ebooks    standardebooks.org/ebooks/AUTHOR/BOOK-TITLE/
 
-For catalog mirrors, availability is volatile and DNS-dependent. Probe before trusting any list;
-several well-known mirrors time out or fail DNS from some networks. At last verification
-libgen.li answered while libgen.is/.rs/.st timed out and annas-archive.org failed DNS.
+Catalog mirrors — availability varies by network, DNS, and time. Probe before trusting any list;
+some hosts answer while others fail DNS from the same machine.
 
-Mirror search:
-  https://libgen.li/index.php?req=QUERY
+  libgen.li           plain HTTP, agent-usable  ->  libgen.li/index.php?req=QUERY
+  library.lol         direct frontend          ->  library.lol/main/{MD5}
+  z-library.bz        browser required (JS challenge), search WAF-gated
+  z-lib.mx            redirector shell only (302s to z-lib.ws)
+  Z-Library session   logged-in browser — best per-user route
+  annas-archive.org   aggregator; DNS-blocked on some networks
+  oceanofpdf.com      browser-oriented, ad-heavy
+  libgen.is/.rs/.st   frequently DNS-poisoned; try, don't rely
 
-Hard-won specifics:
+If a source blocks automation, name it anyway — a live URL a human can open still has value.
+
+Z-Library specifics: z-library.bz returns a ~13KB spinner page to plain HTTP (an anti-bot
+challenge, not a dead site); a real browser gets the genuine homepage. Its search route is
+/s/?q=QUERY (trailing slash + q param) — /s/<query> is Page Not Found — but submitting it
+redirects to z-library.im, which answers automated clients with a WAF "Access Denied". Verified
+with both direct navigation and human-like form submission. Treat Z-Library as an operator-driven
+browser source, not an agent-primary one.
+
+libgen.li specifics:
   - Search by TITLE, not just ISBN. Catalogue records often carry a different edition's ISBN,
     so an ISBN query returns nothing for a book that is definitely present.
   - Apostrophes and smart quotes break the query. Try both with and without them, plus author
