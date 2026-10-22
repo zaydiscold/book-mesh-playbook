@@ -244,15 +244,22 @@ def stage_download():
     matches = r(os.path.join(STATE, "matches.json"), [])
     os.makedirs(BOOKS, exist_ok=True)
     done, failed = [], []
+    # libgen.li caps 50 files / 300s per IP and returns a ~115-byte HTML page (not an HTTP error)
+    # when exceeded. Space starts out, and treat tiny files as throttle pages, not books.
+    gap, next_slot = 6.5, 0.0
     for it in matches:
         if not it["found"]:
             continue
         md5, ext = it["best"]["md5"], it["best"]["ext"] or "epub"
         dest = os.path.join(BOOKS, f"{safe(clean_title(it['title']))}.{ext}")
-        if os.path.exists(dest) and os.path.getsize(dest) > 20000:
+        if os.path.exists(dest) and os.path.getsize(dest) > 50000:
             done.append({"title": it["title"], "file": dest, "md5": md5, "size": os.path.getsize(dest)})
             print(f"  = have  {os.path.basename(dest)[:52]}")
             continue
+        now = time.time()
+        if now < next_slot:
+            time.sleep(next_slot - now)
+        next_slot = time.time() + gap
         ads = f"{LIBGEN}/ads.php?md5={md5}"
         tmp = os.path.join(CACHE, "ads.html")
         html = curl(ads, out=tmp)
@@ -261,9 +268,22 @@ def stage_download():
             failed.append({"title": it["title"], "reason": "no key"})
             print(f"  X nokey {os.path.basename(dest)[:50]}")
             continue
-        curl(f"{LIBGEN}/{m.group(1)}", out=dest, referer=ads, timeout=180)
-        if not os.path.exists(dest) or os.path.getsize(dest) < 20000:
-            failed.append({"title": it["title"], "reason": "small"})
+        curl(f"{LIBGEN}/{m.group(1)}", out=dest, referer=ads, timeout=600)
+        if not os.path.exists(dest) or os.path.getsize(dest) < 50000:
+            reason = "small"
+            if os.path.exists(dest):
+                head = open(dest, "rb").read(300)
+                if b"too much files" in head:
+                    reason = "rate limited"
+                os.remove(dest)
+            failed.append({"title": it["title"], "reason": reason})
+            print(f"  X {reason:<10} {os.path.basename(dest)[:50]}")
+            continue
+        with open(dest, "rb") as f:
+            head = f.read(2)
+        if head != b"PK" and ext in ("epub", "azw3"):
+            os.remove(dest)
+            failed.append({"title": it["title"], "reason": "not a zip"})
             continue
         got = hashlib.md5(open(dest, "rb").read()).hexdigest()
         if got != md5:
@@ -273,7 +293,6 @@ def stage_download():
             continue
         done.append({"title": it["title"], "file": dest, "md5": md5, "size": os.path.getsize(dest)})
         print(f"  OK {os.path.getsize(dest):>9,}B {os.path.basename(dest)[:48]}")
-        time.sleep(1.0)
     w(os.path.join(STATE, "downloaded.json"), {"done": done, "failed": failed})
     print(f"  downloaded {len(done)}, failed {len(failed)}")
 

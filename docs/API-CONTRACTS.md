@@ -185,6 +185,29 @@ The key is **short-lived and rotates**. A 404, an HTML error page, or an MD5 mis
 mean the key went stale between step 1 and step 2 — re-fetch `ads.php` rather than retrying the
 same `get.php` URL.
 
+### Rate limiting — the real constraint
+
+```
+50 files per 300 seconds, per IP
+```
+
+Exceeding it does **not** return an HTTP error. It returns a **115-byte HTML page**:
+
+```html
+<h1 style="color:#A00000">Error</h1><p>You have downloaded too much files (50) in the last 300 seconds, please wait
+```
+
+Saved to disk with a `.epub` extension, this looks like a corrupt book rather than a throttle. Two
+consequences:
+
+- **Validate before trusting.** A file under ~50 KB is not a book. Check magic bytes (`PK` for
+  EPUB/ZIP) and run `unzip -tq`.
+- **Throttle, don't maximize workers.** Concurrency helps because throughput is ~42 KB/s *per
+  connection*, but the file *count* is capped independently. Budget one file start per ~6.5s.
+  Six workers at full tilt hits the cap in under a minute and then everything after that fails.
+
+Working shape: moderate concurrency for bandwidth, rate gate for count. The gate matters more.
+
 ### Verification is mandatory
 
 ```
@@ -223,6 +246,7 @@ Different failures need different fixes. Collapsing them into "blocked" wastes e
 | TLS `SEC_E_UNTRUSTED_ROOT` | cert untrusted | browser, or `-k` on a trusted host |
 | HTML where a file was expected | stale download key | re-fetch `ads.php` |
 | MD5 mismatch | wrong/partial file | discard, re-resolve |
+| tiny `.epub` (~115 bytes) | **rate limit page saved as a file** | wait 300s, throttle to 1 start per ~6.5s |
 | `status: true` but no receipt | uploaded, not delivered | poll `recent-docs` |
 | receipt shows mangled name | filename normalisation | fold apostrophes when matching |
 | `pdocs` auth error, `send` fine | separate cookie scope | don't re-upload; use receipts as proof |
