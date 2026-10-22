@@ -1,0 +1,11 @@
+# Pipeline working state — books, caches, and auth never belong in git
+state/
+pipeline/state/
+pipeline/books/
+books/
+*.epub
+*.mobi
+*.azw3
+*.pdf
+__pycache__/
+*.pyc

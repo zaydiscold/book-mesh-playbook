@@ -17,8 +17,16 @@ Two unofficial CLIs (public, TypeScript, MCP is an optional thin adapter — the
   Amazon/Kindle : github.com/zaydiscold/amazon-kindle-cli-mcp-api
   Goodreads     : github.com/zaydiscold/goodreads-cli-mcp-api
 
-Both auto-load auth in a cold shell. Do not `source` files first and do not start MCP to
-make a command "work". Prove state instead:
+Both are TypeScript CLIs (MCP is an optional thin adapter — the CLI is primary).
+
+Auth loading differs, and getting this wrong looks like a broken shelf:
+
+- `amazon-kindle-cli` **auto-loads** `~/.amazon/auth.sh` in a cold shell. Do not source it.
+- `goodreads-cli` **does not auto-load** anything. You must `. ~/.goodreads/auth.sh` first, or
+  export `GOODREADS_COOKIE`, or every authenticated call silently returns an empty result set
+  (`rows: 0`, `signedOut: false`) instead of an error.
+
+Prove state instead of assuming:
 
   amazon-kindle-cli auth verify
 

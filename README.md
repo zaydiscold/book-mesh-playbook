@@ -15,24 +15,47 @@ whole pipeline: mirrors, search tactics, verification gates, conversion, and Sen
 ## What's in the box
 
 ```
+PASTE-THIS.md            one-paste agent brief
+pipeline/bookmesh.py     pull -> diff -> search -> download -> send
 skills/
-  free-book-download/    # finding + fetching public-domain and free ebooks
-  amazon-kindle-cli/     # Send-to-Kindle, wishlist, auth recovery SOP
-  book-list-mesh/        # Goodreads <-> Amazon mesh, HTTP contracts, shipping gates
+  free-book-download/    finding + fetching ebooks, mirror reality
+  amazon-kindle-cli/     Send-to-Kindle, wishlist, auth recovery
+  book-list-mesh/        Goodreads <-> Amazon mesh, HTTP contracts
 ```
 
-Each is a `SKILL.md` plus `references/`. Drop them into any agent that supports skill/prompt
-directories (Hermes, Claude Code, Codex, Cursor, etc.) — they're plain markdown.
+Skills are plain markdown (`SKILL.md` + `references/`). Drop into Hermes, Claude Code, Codex,
+Cursor, or anything that reads skill directories.
+
+## Pipeline
+
+```bash
+export GOODREADS_USER_ID=<your numeric id>
+. ~/.goodreads/auth.sh          # required — goodreads-cli does NOT auto-load auth
+
+python pipeline/bookmesh.py pull       # Goodreads to-read + Amazon wishlist -> state/
+python pipeline/bookmesh.py diff       # union + overlap of both lists
+python pipeline/bookmesh.py search     # resolve titles on libgen.li
+python pipeline/bookmesh.py download   # fetch + MD5-verify -> books/
+python pipeline/bookmesh.py send       # dry-run; add --execute to push to Kindle
+```
+
+Stages are independent and idempotent — rerun any of them. `send` without `--execute` is a dry run.
+
+Env: `GOODREADS_CLI` and `KINDLE_CLI` point at the two CLI directories; `GOODREADS_COOKIE` is
+required for `pull`.
 
 ## The two CLIs these skills drive
 
-| Surface | Repo | Auth file |
-|---|---|---|
-| Amazon / Kindle | `zaydiscold/amazon-kindle-cli-mcp-api` | `~/.amazon/auth.sh` |
-| Goodreads | `zaydiscold/goodreads-cli-mcp-api` | `~/.goodreads/auth.sh` |
+| Surface | Repo | Auth file | Auto-loads? |
+|---|---|---|---|
+| Amazon / Kindle | `zaydiscold/amazon-kindle-cli-mcp-api` | `~/.amazon/auth.sh` | **yes** |
+| Goodreads | `zaydiscold/goodreads-cli-mcp-api` | `~/.goodreads/auth.sh` | **no — source it** |
 
-Both are **public**. MCP is an optional thin adapter — the CLI is the product path and works in
-a cold shell, in cron, and from scripts.
+That asymmetry is the most common failure. A missing Goodreads cookie returns
+`rows: 0, signedOut: false` — an empty result, not an error. It looks like an empty shelf.
+
+MCP is an optional thin adapter; the CLI is the product path and works in a cold shell, in cron,
+and from scripts.
 
 ## Auth: per-operator, never shared
 
@@ -68,19 +91,33 @@ cookie names and break the session. Origin-scope to `www.amazon.com`.
    `mutationVerified: false` until the receipt reports `IN_LIBRARY`.
 4. **Don't conflate surfaces.** Wishlist membership ≠ ownership. Purchased Kindle inventory,
    personal documents, and recent send receipts are three different things.
+5. **Reuse the proven parser.** The CLI's shelf parser handles Goodreads markup correctly; a
+   hand-rolled regex undercounts badly (69 vs 171 on a real shelf).
 
 ## Finding books: mirror reality
 
-`free-book-download` documents what actually works, verified rather than assumed:
+Availability is volatile and network-dependent. **Probe before trusting a list.**
+
+Verified at time of writing:
+
+| Source | Status |
+|---|---|
+| `libgen.li` | ✅ downloadable — primary |
+| `z-library.bz` | ✅ search only (real browser defeats DiamWall; 500 results) |
+| `z-library.im` | ❌ DiamWall — blocked even in a real browser (IP-level) |
+| `libgen.is/.rs/.st` | ❌ TCP timeout |
+| `library.lol` | ❌ domain seized |
+| `annas-archive.org`, `libgen.gs` | ❌ DNS NXDOMAIN |
+
+Notes that save time:
 
 - Public-domain sources first (Project Gutenberg, Standard Ebooks) — no bot protection.
-- Mirror availability is volatile and DNS-dependent; **probe before trusting a list**. At the last
-  verification only `libgen.li` answered while several well-known mirrors timed out or failed DNS.
-- Search by **title as well as ISBN**. Catalogue records often carry a different edition's ISBN,
-  so an ISBN search can return nothing for a book that is definitely present.
-- Download links may require a short-lived key from an intermediate page; the key rotates.
-- **Verify integrity by comparing the file's MD5 to the catalogue MD5**, then confirm identity from
-  the file's own internal metadata rather than the listing.
+- Search by **title, not just ISBN**. Catalogue records often carry a different edition's ISBN.
+- Download links come from an intermediate page with a **short-lived rotating key**.
+- **Verify integrity**: compare the file's MD5 to the catalogue MD5. A mismatch means a rotated key
+  or an error page, not a usable book.
+- `z-library.bz` is useful for discovery metadata (format, size, language) even when `.im` blocks
+  the download.
 
 ## Format conversion
 
