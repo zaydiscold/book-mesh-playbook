@@ -46,11 +46,27 @@ land. Falling out ≠ failure.
 ```
 GET  /hz/wishlist/ls                          → discover list name → listId
 GET  /hz/wishlist/ls/{listId}?sort=date-added&viewType=list
-POST /hz/wishlist/additemtolist?ie=UTF8&…    → add an ASIN
+GET  /dp/{ASIN}                               → resolve before add
+POST /hz/wishlist/additemtolist?ie=UTF8&…     → add an ASIN
 ```
 
 The list page lazy-loads; a page-1 parse undercounts. Walk the pagination before trusting a total.
 That is the difference between "54 items" and the real number.
+
+**`POST additemtolist` is aggressively throttled.** A burst of ~5 adds succeeds, then every
+subsequent add returns **HTTP 403** with `ok: false` and a null message — including for ASINs that
+are perfectly valid. Observed behaviour:
+
+- Sequential adds 3s apart: first few succeed, then sustained 403
+- 25-45s spacing after the throttle had engaged: still 403
+- The block is on the **write**, not the product: title→ASIN resolution continues to work
+- A specific ASIN can also 403 independently (unavailable item), so 403 alone does not prove
+  throttling — confirm by re-listing: if the ASIN is absent, the add genuinely did not land
+
+Practical rule: treat wishlist writes as a scarce resource. Verify each add by re-listing rather
+than trusting the response, and expect bulk backfill to need long spacing or a fresh session.
+
+**Distinguish the two 403s:** re-list the wishlist. Present → it worked. Absent → it didn't.
 
 ### Content inventory (MYCD)
 
