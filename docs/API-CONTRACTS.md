@@ -73,6 +73,18 @@ This surface needs a **different cookie scope** than send-to-Kindle. `pdocs` fre
 "requires sign-in or Amazon presented a challenge" while `send` works fine. That is a scope split,
 not a broken session — don't "fix" it by re-uploading.
 
+The web UI at `/hz/mycd/digital-console/contentlist/pdocs` is also bot-walled in a real browser
+("Something went wrong" / "Click the button below to continue shopping").
+
+**Consequence — there is no available endpoint that enumerates the full personal-document library.**
+The only delivery proof is `/sendtokindle/recent-docs`, which returns **exactly 18 receipts**
+regardless of `--limit`. Planning:
+
+- A bulk send of more than ~18 books **cannot** be individually verified after the fact.
+- Verify in windows: send ≤18, confirm `IN_LIBRARY`, record, then send the next batch. Keep a local
+  ledger of what was confirmed so the rolling window doesn't erase your evidence.
+- `send-v2` returning `status: true` / a `docId` means **accepted**, never delivered.
+
 ### Auth probe
 
 ```
