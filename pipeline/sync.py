@@ -47,28 +47,55 @@ def run(cmd, cwd, timeout=180):
 
 
 def gr_book_id(title, author):
-    """Resolve a title/author to a Goodreads book id via the CLI's search."""
+    """Resolve a title/author to a Goodreads book id.
+
+    /search redirect-loops under anti-bot, but /book/auto_complete still returns clean
+    JSON with bookId. Prefer it; fall back to the CLI's search.
+    """
+    import urllib.parse
     q = f"{title} {author}".strip()
-    rc, out, err = run(["node", "dist/index.js", "search", "books", "--query", q, "--json"],
-                       GR_CLI, timeout=240)
-    if rc != 0:
-        # fall back to positional form
-        rc, out, err = run(["node", "dist/index.js", "search", "books", q, "--json"], GR_CLI, timeout=240)
-    i = out.find("{")
-    if i < 0:
-        return None
+    cookie = os.environ.get("GOODREADS_COOKIE", "")
+    url = ("https://www.goodreads.com/book/auto_complete?format=json&q="
+           + urllib.parse.quote_plus(q))
     try:
-        d = json.loads(out[i:])
+        p = subprocess.run(["curl", "-s", "--max-time", "30",
+                            "-A", ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                                   "(KHTML, like Gecko) Chrome/131.0 Safari/537.36"),
+                            "-H", f"Cookie: {cookie}", url],
+                           capture_output=True, text=True, timeout=60)
+        raw = p.stdout.strip()
+        i = raw.find("[")
+        cands = json.loads(raw[i:]) if i >= 0 else []
     except Exception:
-        return None
-    data = d.get("data") or d
-    cands = data.get("books") or data.get("results") or data.get("candidates") or []
+        cands = []
+
+    if not cands:
+        rc, out, err = run(["node", "dist/index.js", "search", "books", "--query", q, "--json"],
+                           GR_CLI, timeout=240)
+        j = out.find("{")
+        if j >= 0:
+            try:
+                d = json.loads(out[j:])
+                data = d.get("data") or d
+                cands = data.get("books") or data.get("results") or []
+            except Exception:
+                cands = []
+
     tw = [w for w in norm(title).split() if len(w) > 2]
+    aw = [w for w in norm(author).split() if len(w) > 2]
+    best = None
     for c in cands:
-        ct = norm(c.get("title") or "")
-        if tw and sum(1 for w in tw if w in ct) / len(tw) >= 0.6:
-            return str(c.get("bookId") or c.get("id") or "") or None
-    return None
+        ct = norm(c.get("bookTitleBare") or c.get("title") or "")
+        if not tw:
+            continue
+        score = sum(1 for w in tw if w in ct) / len(tw)
+        # reject study guides / summaries masquerading as the book
+        if re.search(r"\b(summary|study guide|analysis|cliffsnotes|sparknotes)\b", ct):
+            continue
+        if score >= 0.75:
+            if best is None or score > best[0]:
+                best = (score, str(c.get("bookId") or c.get("id") or ""))
+    return best[1] if best and best[1] else None
 
 
 def main():
@@ -135,9 +162,11 @@ def main():
                 actions += 1
                 continue
             rc, out, err = run(["node", "dist/index.js", "library", "set-status",
-                                "--book-id", bid, "--status", "to-read", "--execute"],
+                                "--book-id", bid, "--status", "to-read",
+                                "--approved-book-id", bid, "--approved-status", "to-read",
+                                "--execute"],
                                GR_CLI, timeout=300)
-            ok = rc == 0 and ('"ok": true' in out)
+            ok = rc == 0 and ('"ok": true' in out or '"submitted": true' in out)
             log["amz2gr"][key] = {"ok": ok, "title": m["title"], "bookId": bid,
                                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
             save(LOG, log)
