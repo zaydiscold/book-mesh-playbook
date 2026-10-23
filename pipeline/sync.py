@@ -53,7 +53,10 @@ def gr_book_id(title, author):
     JSON with bookId. Prefer it; fall back to the CLI's search.
     """
     import urllib.parse
-    q = f"{title} {author}".strip()
+    # Query with the title stem: series suffixes ("(The Dove Chronicles Book 1)") make the
+    # autocomplete endpoint return nothing.
+    q_title = re.split(r"[:–—(]", str(title))[0].strip()
+    q = f"{q_title} {author}".strip()
     cookie = os.environ.get("GOODREADS_COOKIE", "")
     url = ("https://www.goodreads.com/book/auto_complete?format=json&q="
            + urllib.parse.quote_plus(q))
@@ -81,7 +84,14 @@ def gr_book_id(title, author):
             except Exception:
                 cands = []
 
-    tw = [w for w in norm(title).split() if len(w) > 2]
+    # Compare title STEMS. Amazon titles carry series suffixes like
+    # "Dove Arising (The Dove Chronicles Book 1)" while Goodreads returns "Dove Arising";
+    # scoring the full string makes an exact match fail on word-count dilution.
+    def stem(t):
+        t = re.split(r"[:–—(]", str(t))[0]
+        return norm(t)
+
+    tw = [w for w in stem(title).split() if len(w) > 2]
     aw = [w for w in norm(author).split() if len(w) > 2]
     best = None
     for c in cands:
@@ -89,13 +99,18 @@ def gr_book_id(title, author):
         if not tw:
             continue
         score = sum(1 for w in tw if w in ct) / len(tw)
+        # title must fully match; author surname breaks ties
+        if score < 0.99:
+            continue
         # reject study guides / summaries masquerading as the book
         if re.search(r"\b(summary|study guide|analysis|cliffsnotes|sparknotes)\b", ct):
             continue
-        if score >= 0.75:
-            if best is None or score > best[0]:
-                best = (score, str(c.get("bookId") or c.get("id") or ""))
-    return best[1] if best and best[1] else None
+        aname = norm((c.get("author") or {}).get("name") or "")
+        ascore = sum(1 for w in aw if w in aname) / len(aw) if aw else 0.0
+        bid = str(c.get("bookId") or c.get("id") or "")
+        if bid and (best is None or (score, ascore) > best[0]):
+            best = ((score, ascore), bid)
+    return best[1] if best else None
 
 
 def main():
